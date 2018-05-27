@@ -124,6 +124,22 @@ class SQDict:
             value = getattr(record, field)
             self._discard_indexed(field, value, index)
 
+    # -------------------------------------------------------------------------
+    def create_indexes(self, *fields) -> None:
+        for field in fields:
+            if field not in self.fields:
+                raise AttributeError(f"'{Record.__name__}' object has no attribute '{field}'")
+            elif field in self.__indexed_table:
+                break  # 已有索引记录, 或非
+            else:
+                self.__indexed_table[field] = {}
+                for index, record in self.__record_table.items():
+                    self._add_indexed(field, getattr(record, field), index)
+
+    def delete_index(self, field):
+        if field in self.__indexed_table:
+            del self.__indexed_table[field]
+
     def add_field(self, field, value):
         # 先对已有记录添加域和值
         for record in self:
@@ -135,9 +151,7 @@ class SQDict:
         for record in self:
             delattr(record, field)
 
-        if field in self.__indexed_table:
-            del self.__indexed_table[field]
-
+        self.delete_index(field)
         self.value_dict.__delitem__(field)
 
     def insert(self, *keys, **value_dict) -> None:
@@ -154,17 +168,6 @@ class SQDict:
             self.__record_table[index] <<= value_dict
 
     # -------------------------------------------------------------------------
-    def create_indexes(self, *fields) -> None:
-        for field in fields:
-            if field not in self.fields:
-                raise AttributeError(f"'{Record.__name__}' object has no attribute '{field}'")
-            elif field in self.__indexed_table:
-                break  # 已有索引记录, 或非
-            else:
-                self.__indexed_table[field] = {}
-                for index, record in self.__record_table.items():
-                    self._add_indexed(field, getattr(record, field), index)
-
     def _add_indexed(self, field: str, value, index: int) -> None:
         entry = self.__indexed_table.get(field)
         if entry is None:
@@ -270,8 +273,9 @@ class SQDict:
             print('|'.join(lines))
         print('=' * ww * len(heads))
 
-        print('key_index_map:', self.__key_index_map)
-        print('indexed_table:', self.__indexed_table, '\n')
+        # 调试用
+        # print('key_index_map:', self.__key_index_map)
+        # print('indexed_table:', self.__indexed_table, '\n')
 
 
 if __name__ == '__main__' and 1:
@@ -317,29 +321,29 @@ if __name__ == '__main__' and 1:
 
 if __name__ == '__main__' and 1:
     # 只有一个主键, 中途创建索引
-    db = SQDict('k1', v1=None, v2=None)
+    db = SQDict('k1', v1=None, v2=None)  # 创建时 *args 对应主键, **kwargs 对视为值域, 值域必须有默认值
 
-    db.insert('A', v1=1, v2=2)
-    db.create_indexes('k1', 'v1')
+    db.insert('A', v1=1, v2=2)  # 插入时 *args 对应主键项, **kwargs 对应值域
+    db.create_indexes('k1', 'v1')  # 主键或值域都能建立索引
 
     try:
-        db.insert('A', k1='A1')
+        db.insert('A', k1='A1')  # 不能在 **kwargs 中再去修改主键
     except AttributeError as e:
         print(e)  # 'Record' object attribute 'k1' is read-only
 
     try:
-        db.insert(v2=2)
+        db.insert(v2=2)  # 如果设置了主键, 插入时没有 *args 参数, 会抛出 TypeError
     except TypeError as e:
         print(e)  # <__main__.SQDict object at 0x04DBC8F0>.insert expect 1 keys, got 0
 
     r = db['A']
-    r <<= {'v1': 11}
+    r <<= {'v1': 11}  # 修改记录
 
-    db['B'] = {'v1': 10, 'v2': 20}
+    db['B'] = {'v1': 10, 'v2': 20}  # 插入新记录
     del db['A']
 
     for r in db:
-        print(r >> db.fields)
+        print(r >> db.fields)  # 在记录中提取域
     # {'k1': 'B', 'v1': 10, 'v2': 20}
 
     try:

@@ -30,7 +30,7 @@ description = """
 
 setup(
     name="geekberry",
-    version="1.0.5",
+    version="1.0.6",
     keywords=("pip", "geekberry", "database"),
     description="Some tools.",
     long_description=description,
