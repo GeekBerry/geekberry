@@ -1,13 +1,6 @@
 #!/usr/bin/env python
 # -*- coding:utf-8 -*-
 
-#############################################
-# File Name: setup.py
-# Author: GeekBerry
-# Mail: GeekBerry@qq.com
-# Created Time:  2018-05-27
-#############################################
-
 """
 打包和上传步骤:
     0.如果没有 twine

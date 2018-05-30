@@ -12,7 +12,7 @@ def concurrence(*coroutines):
         return tuple(map(asyncio.Task.result, tasks))
 
 
-if __name__ == '__main__':
+if __name__ == '__main__' and 0:
     import time
 
 
