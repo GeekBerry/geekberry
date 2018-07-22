@@ -61,53 +61,80 @@ class Stream(StreamBase):
         return parsed
 
 
+from itertools import count
+
+line = count(0)
+
+
 class RDStream(StreamBase):
     def __init__(self, string, begin=0, end=None):
         super().__init__(string, begin, end)
         self.stack = []  # [symbol, ...]
+        self.recursive_stack = []  # [symbol, ...]
         self.record = {}  # {(symbol, start_pos):(parsed, end_pos), ...}
-        self.recursive_symbol = None
+
+    # def sub_parse(self, symbol):
+    #     parsed = super().parse(symbol)
+    #     if not self.recursive_stack:
+    #         self.record[symbol, start_pos] = parsed, self.index
+    #         return parsed
+    #
+    #     if self.recursive_stack[-1] != symbol:
+    #         del self.record[symbol, start_pos]  # 清除访问记录
+    #         return parsed
+    #
+    #     # 在最后一次左递归满足后，肯可能再次生成短解析结果，需要进行最长匹配检查
+    #     r_parsed, r_end_pos = self.record[symbol, start_pos]
+    #     if self.index <= r_end_pos:  # 解析没有前进
+    #         parsed, self.index = r_parsed, r_end_pos  # 留下最长匹配的结果
+    #
+    #         self.recursive_stack.pop(-1)
+    #         return parsed
+    #
+    #     self.record[symbol, start_pos] = parsed, self.index
+    #     self.index = start_pos  # 复原位置才能再次进行解析
+    #     return parsed
 
     def parse(self, symbol):
-        print(f"{' '*4*len(self.stack)}{symbol}{'{'}behind='{self.behind(40)}'")
+        print(f'{next(line):04d}{len(self.stack):4} {" "*4*len(self.stack)}START {symbol} << "{self.behind(40)}"')
         start_pos = self.index
-
         if (symbol, self.index) not in self.record:  # 没有记录, symbol 肯定不是递归符号
             self.stack.append(symbol)
 
-            self.record[symbol, start_pos] = None, -1
+            self.record[symbol, start_pos] = None, -1  # 添加访问记录
             while True:
+                # parsed = self.sub_parse(symbol)
                 parsed = super().parse(symbol)
 
-                if self.recursive_symbol is None:  # 解析中，没有左递归符号，记录并返回
+                if not self.recursive_stack:  # 解析中，没有左递归符号，记录并返回
                     self.record[symbol, start_pos] = parsed, self.index
                     break
 
-                if self.recursive_symbol != symbol:  # 有左递归，当前符号非递归符号 => 左递归符号在栈下方
+                if self.recursive_stack[-1] != symbol:  # symbol 非当前递归符号
                     del self.record[symbol, start_pos]  # 清除访问记录
                     break
 
-                # 在最后一次左递归满足后，肯可能再次生成短解析结果，需要进行最长匹配检查
+                # 在最后一次左递归满足后，可能再次生成短解析结果，需要进行最长匹配检查
                 r_parsed, r_end_pos = self.record[symbol, start_pos]
                 if self.index <= r_end_pos:  # 解析没有前进
                     parsed, self.index = r_parsed, r_end_pos  # 留下最长匹配的结果
-                    self.recursive_symbol = None  # 递归解析结束, 清除递归记录
+                    self.record[symbol, start_pos] = parsed, self.index  # 重复项
+                    self.recursive_stack.pop(-1)
                     break
 
                 self.record[symbol, start_pos] = parsed, self.index
-                self.index = start_pos  # 复原位置才能再次进行解析
+                self.index = start_pos  # 复位再解析
 
             self.stack.pop(-1)
         else:
             parsed, end_pos = self.record[symbol, start_pos]
-            if end_pos == -1:  # 有记录 且 end_pos 为负数, 说明symbol被递归访问
-                # assert parsed is None
-                # assert self.index == start_pos
-                self.recursive_symbol = symbol
+            if end_pos == -1:  # 有记录 且 end_pos 为负数, 说明 symbol 被递归访问
+                self.recursive_stack.append(symbol)
             else:
                 self.index = end_pos
 
-        print(f"{' '*4*len(self.stack)}{'}'}parsed='{repr(parsed)}', behind='{self.behind(40)}'\n")
+        print(
+            f'{next(line):04d}{len(self.stack):4} {" "*4*len(self.stack)}END {symbol} = "{repr(parsed)}" << "{self.behind(40)}"')
 
         return parsed
 
@@ -120,19 +147,23 @@ class RDStream(StreamBase):
 class SymbolBase:
     name = ''  # 显示用名字
 
-    def __or__(self, other):
-        symbol = sym(other)
+    def __or__(self, other) -> 'AnySymbol':
+        return AnySymbol([self, sym(other)])
 
-        if isinstance(self, AnySymbol):
-            return AnySymbol(self.symbols + [symbol])
-        else:
-            return AnySymbol([self, symbol])
+    def __mul__(self, arg) -> 'RepeatSymbol':
+        """
+        :param arg: int|tuple(int, int)
+        :return: RepeatSymbol
 
-    def __mul__(self, arg):
-        if type(arg) is int:
-            return RepeatSymbol(self, arg, arg)
-        else:
-            return RepeatSymbol(self, arg[0], arg[1])
+        >>> sym()*3
+        >>> sym()*(0, 5)
+        >>> sym()*(0, ...)
+        """
+        try:
+            begin, end = arg
+        except TypeError:
+            begin, end = arg, arg
+        return RepeatSymbol(self, begin, end)
 
     @NotImplementedError
     def match(self, stream):
@@ -179,7 +210,7 @@ class StringSymbol(TerminalSymbol):
             return None
 
     def dump(self):
-        return f"'{self.string}'"
+        return repr(self.string)
 
 
 class RegularSymbol(TerminalSymbol):
@@ -247,6 +278,9 @@ class AllSymbol(NonTerminalSymbol):
 class AnySymbol(NonTerminalSymbol):
     def __init__(self, symbols):
         self.symbols = symbols
+
+    def __or__(self, other) -> 'AnySymbol':
+        return AnySymbol(self.symbols + [other])
 
     def match(self, stream):
         for symbol in self.symbols:

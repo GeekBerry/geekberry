@@ -58,7 +58,7 @@ class T(SymbolTable):
 
 
 if __name__ == '__main__':
-    s = RDStream(" (1+3-4)*(1/2) ")
+    s = RDStream(" (1+5-4)*(2/(2-1)) ")
     t = T()
     print(t.dump())
     p = s.parse(t['S'])

@@ -35,25 +35,25 @@ print(r4)  # 4
 print(int(time.time() - st), 's')  # 6 s
 ```
 
-## Channel
+## Queue
 协程信道
 
 ```python
 import asyncio
 import random
-from geekberry import concurrence, Channel
+from geekberry import concurrence, Queue
 
-chan = Channel(2)  # 设置信道队列尺寸, 默认为 1
+chan = Queue(2)  # 设置信道队列尺寸, 默认为 1
 
 
 async def p1():  # 生产者
     print('p1 start')
 
     for i in range(10):
-        await chan.put(i)  # 向 Channel 中放
+        await chan.put(i)  # 向 Queue 中放
         print('p1', i, '...')
         await asyncio.sleep(0.3)
-    chan.close()  # 关闭后将不能再放数据, 否则抛出 Channel.Closed 异常
+    chan.close()  # 关闭后将不能再放数据, 否则抛出 Queue.Closed 异常
     # 注意: 不再使用(放置数据)的信道不关闭, 会导致死锁
 
 
@@ -62,10 +62,10 @@ async def c1():  # 消费者
 
     while True:
         try:
-            i = await chan.get()  # 从 Channel 中取数据
+            i = await chan.get()  # 从 Queue 中取数据
             print('c1', i)
             await asyncio.sleep(random.uniform(0, 0.6))
-        except Channel.Closed:
+        except Queue.Closed:
             break
 
 

@@ -1,3 +1,2 @@
 from geekberry.sqdict import SQDict
-from geekberry.async import concurrence, Channel
-
+from .tools import Queue, concurrence

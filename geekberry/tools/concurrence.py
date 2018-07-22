@@ -2,7 +2,18 @@ import asyncio
 import queue
 
 
-class Channel:
+def concurrence(*coroutines):
+    loop = asyncio.get_event_loop()
+    tasks = tuple(map(loop.create_task, coroutines))
+    loop.run_until_complete(asyncio.wait(tasks))
+
+    if len(coroutines) == 1:
+        return tasks[0].result()
+    else:
+        return tuple(map(asyncio.Task.result, tasks))
+
+
+class Queue:
     class Closed(Exception):
         pass
 
@@ -17,7 +28,7 @@ class Channel:
                 await asyncio.sleep(0)
             self.__quque.put_nowait(value)
         else:
-            raise Channel.Closed()
+            raise Queue.Closed()
 
     async def get(self):
         while self.__quque.empty() and self.__opened:
@@ -26,17 +37,16 @@ class Channel:
         try:
             return self.__quque.get_nowait()
         except queue.Empty:
-            raise Channel.Closed()
+            raise Queue.Closed()
 
     def close(self):
         self.__opened = False
 
 
-if __name__ == '__main__':
+if __name__ == '__main__' and 0:
     import random
-    from geekberry import concurrence
 
-    chan = Channel(2)
+    chan = Queue(2)
 
 
     async def p1():
@@ -57,31 +67,28 @@ if __name__ == '__main__':
                 i = await chan.get()
                 print('c1', i)
                 await asyncio.sleep(random.uniform(0, 0.6))
-            except Channel.Closed:
+            except Queue.Closed:
                 break
 
 
     concurrence(p1(), c1())
 
-    # p1 start
-    # p1 0 ...
-    # c1 start
-    # c1 0
-    # p1 1 ...
-    # c1 1
-    # p1 2 ...
-    # c1 2
-    # p1 3 ...
-    # c1 3
-    # p1 4 ...
-    # c1 4
-    # p1 5 ...
-    # c1 5
-    # p1 6 ...
-    # p1 7 ...
-    # c1 6
-    # p1 8 ...
-    # c1 7
-    # p1 9 ...
-    # c1 8
-    # c1 9
+if __name__ == '__main__' and 1:
+    import time
+
+
+    async def func(n: int):
+        await asyncio.sleep(n)
+        return n
+
+
+    st = time.time()
+    r0, r1, r2 = concurrence(func(0), func(1), func(2))
+    print(r0, r1, r2)  # 0, 1, 2
+
+    print(int(time.time() - st), 's')  # 2 s
+
+    r4 = concurrence(func(4))
+    print(r4)  # 4
+
+    print(int(time.time() - st), 's')  # 6 s
