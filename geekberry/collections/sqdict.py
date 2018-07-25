@@ -1,6 +1,8 @@
 import pickle
 import itertools
 
+__all__ = ['SQDict']
+
 
 class Record:
     __sqdict = None
@@ -278,7 +280,7 @@ class SQDict:
         # print('indexed_table:', self.__indexed_table, '\n')
 
 
-if __name__ == '__main__' and 1:
+if __name__ == '__main__' and 0:
     # 没有主键的情况
     db = SQDict(v1=None, v2=None)
     db.create_indexes('v1')
@@ -319,7 +321,7 @@ if __name__ == '__main__' and 1:
     # 1       |None    |2
     # ===========================
 
-if __name__ == '__main__' and 1:
+if __name__ == '__main__' and 0:
     # 只有一个主键, 中途创建索引
     db = SQDict('k1', v1=None, v2=None)  # 创建时 *args 对应主键, **kwargs 对视为值域, 值域必须有默认值
 
@@ -351,7 +353,7 @@ if __name__ == '__main__' and 1:
     except AttributeError as e:
         print(e)  # 'Record' object attribute 'k1' is read-only
 
-if __name__ == '__main__' and 1:
+if __name__ == '__main__' and 0:
     # 有多个主键, 数据库的保存和加载
     db = SQDict('id', 'name', age=18, city='<Unknown>')
     db.create_indexes('age', 'city')

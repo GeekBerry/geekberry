@@ -1,7 +1,8 @@
-from geekberry.rdparser.rdparser import *
+import re
+from geekberry.rdparser import *
 
 
-class T(SymbolTable):
+class ArithmeticTable(SymbolTable):
     def __init__(self):
         ends = sym(re.compile('\s*'), name='ends')
         integer = sym(re.compile(r'[0-9]+'), func=int, name='integer')
@@ -38,28 +39,10 @@ class T(SymbolTable):
         else:  # F -> integer
             return arg
 
-    # def S(self, arg):
-    #     return arg[1]
-    #
-    # def E(self, arg):
-    #     if isinstance(arg, list) and len(arg) == 5:
-    #         return [arg[2], arg[0], arg[4]]
-    #     return arg
-    #
-    # def T(self, arg):
-    #     if isinstance(arg, list) and len(arg) == 5:
-    #         return [arg[2], arg[0], arg[4]]
-    #     return arg
-    #
-    # def F(self, arg):
-    #     if type(arg) is list:
-    #         return arg[1]
-    #     return arg
-
 
 if __name__ == '__main__':
-    s = RDStream(" (1+5-4)*(2/(2-1)) ")
-    t = T()
-    print(t.dump())
-    p = s.parse(t['S'])
-    print(p)
+    stream = RDStream(" (1+5-4)*(2/(2-1)) ")
+    table = ArithmeticTable()
+    # print(table.dump())
+    value = stream.parse(table['S'])
+    print(value)
