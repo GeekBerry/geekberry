@@ -70,7 +70,7 @@ class Stream(StreamBase):
         return parsed
 
 
-class RDStream(StreamBase):
+class RDStream(StreamBase):  # Recursive Descent Stream
     Position = named_tuple('index', 'symbol')
 
     class Record(named_tuple('index', 'parsed')):

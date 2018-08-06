@@ -5,11 +5,11 @@
 __all__ = ['named_tuple']
 
 
-def named_tuple(*names):
+def named_tuple(*names) -> 'class':
     if len(names) != len(set(names)):
         return TypeError(f'have repeated name in {names}')
 
-    class Wrapper(tuple):
+    class NamedTuple(tuple):
         def __new__(cls, *args):
             if len(args) != len(names):
                 raise TypeError(f'{cls.__name__}.__new__ require {len(names)} arguments, got {len(args)}')
@@ -20,11 +20,11 @@ def named_tuple(*names):
             try:  # 优先获取 names
                 index = names.index(item)
             except ValueError:  # 没在 names
-                return super().__getattribute__(item)
+                return super().__getattribute__(item)  # 尝试获取属性
             else:
                 return self[index]
 
-    return Wrapper
+    return NamedTuple
 
 
 if __name__ == '__main__' and 0:
@@ -35,11 +35,11 @@ if __name__ == '__main__' and 0:
 
     class Array(named_tuple('x', 'y', 'z')):
         def x(self):  # 该属性会被覆盖
-            return '通过类绑定才能访问'
+            return '只能通过类绑定访问'
 
         @property
         def y(self):
-            return '该属性会被覆盖'
+            return '该值不能被访问'
 
         def get_z(self):
             return self.z
