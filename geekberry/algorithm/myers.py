@@ -5,112 +5,89 @@
     [The Myers diff algorithm](https://blog.jcoglan.com/2017/02/12/the-myers-diff-algorithm-part-1/)
     [An O(ND) Difference Algorithm and Its Variations](http://www.xmailserver.org/diff2.pdf)
 """
-
-from copy import deepcopy
 from itertools import repeat
 
-__all__ = ['meyer', 'Add', 'Equ', 'Sub']
+__all__ = ['DEL', 'PASS', 'ADD', 'myers', 'diff']
 
-
-class Action:
-    OPERATE_MAP = {'Add': '+', 'Equ': '=', 'Sub': '-'}
-    priority = None
-    count = 1
-
-    @property
-    def operate(self):
-        return self.OPERATE_MAP.get(self.__class__.__name__)
-
-    def inc(self):
-        self.count += 1
-
-    def __len__(self):
-        return self.count
-
-    def __str__(self):
-        return self.operate * self.count
-
-
-class Add(Action):
-    priority = 1
-
-
-class Equ(Action):
-    priority = 0
-
-
-class Sub(Action):
-    priority = -1
-
-
-class Snake(list):
-    HEAD = Action()
-
-    @property
-    def tail(self):
-        return self[-1] if self else Snake.HEAD
-
-    def push(self, action_type):
-        if type(self.tail) is action_type:
-            self.tail.inc()
-        else:
-            super().append(action_type())
-
-    def __str__(self):
-        return ''.join(map(str, self))
+DEL, PASS, ADD = -1, 0, 1
 
 
 class Node:
-    def __init__(self, x=0, y=0):
-        self.x = x
-        self.y = y
-        self.snake = Snake()
+    operate = None
+
+    @staticmethod
+    def build(prev, operate=None):
+        if operate == DEL:
+            node = Node(prev.src_i + 1, prev.dst_i, prev)
+        elif operate == PASS:
+            node = Node(prev.src_i + 1, prev.dst_i + 1, prev)
+        elif operate == ADD:
+            node = Node(prev.src_i, prev.dst_i + 1, prev)
+        else:
+            node = Node(prev.src_i, prev.dst_i, prev)
+        node.operate = operate
+        return node
+
+    def __init__(self, src_i, dst_i, prev=None):
+        self.src_i = src_i
+        self.dst_i = dst_i
+        self.prev = prev
 
     @property
     def k(self):
-        return self.x - self.y
+        return self.src_i - self.dst_i
 
     def __hash__(self):
         return self.k
 
+    def __iter__(self):
+        reverse = []
+
+        node = self
+        while node.prev is not None:
+            reverse.append(node.operate)
+            node = node.prev
+
+        return reversed(reverse)
+
     def __eq__(self, other):
-        return self.x == other.x and self.y == other.y
+        return self.src_i == other.src_i and self.dst_i == other.dst_i
 
-    def inner(self, other):
-        return self.x <= other.x and self.y <= other.y
+    def __lt__(self, other):
+        return self.src_i < other.src_i and self.dst_i < other.dst_i
 
-    def add(self):
-        node = deepcopy(self)
-        node.y += 1
-        node.snake.push(Add)
+    def __le__(self, other):
+        return self.src_i <= other.src_i and self.dst_i <= other.dst_i
+
+    def del_node(self):
+        return Node.build(self, DEL)
+
+    def add_node(self):
+        return Node.build(self, ADD)
+
+    def pass_node(self, old, new):
+        end = Node(len(old), len(new))
+
+        node = self
+        while node < end and old[node.src_i] == new[node.dst_i]:
+            node = Node.build(node, PASS)
+
         return node
 
-    def sub(self):
-        n = deepcopy(self)
-        n.x += 1
-        n.snake.push(Sub)
-        return n
-
-    def forward(self, old, new):
-        while self.x < len(old) and self.y < len(new) and old[self.x] == new[self.y]:
-            self.x += 1
-            self.y += 1
-            self.snake.push(Equ)
-
     def __repr__(self):
-        return f'({self.x}, {self.y})'
+        return f'({self.src_i}, {self.dst_i})'
 
 
 class RecordList(list):
-    def __init__(self, end: Node):
-        super().__init__(repeat(None, end.x + end.y + 1))
-        self.end = end
+    def __init__(self, end_node: Node):
+        super().__init__(repeat(None, end_node.src_i + end_node.dst_i + 1))
+        self.end_node = end_node
 
-    def iter(self, deep):
-        left = max(-deep, -self.end.y)
+    def layer_iter(self, deep):
+        left = max(-deep, -self.end_node.dst_i)
         left += (left ^ deep) & 1
 
-        right = min(deep, self.end.x)
+        right = min(deep, self.end_node.src_i)
         right -= (right ^ deep) & 1
 
         for i in range(left, right + 1, 2):  # +1 取闭区间
@@ -119,43 +96,80 @@ class RecordList(list):
                 yield node
 
     def push(self, node):
-        if node.inner(self.end):
+        if node <= self.end_node:
             record = self[node.k]
             if not record:
                 self[node.k] = node
-            elif node.x > record.x:
+            elif node.src_i > record.src_i:
                 self[node.k] = node
-            elif node.x < record.x:
+            elif node.src_i < record.src_i:
                 return
-            elif node.snake.tail.priority > record.snake.tail.priority:
+            elif node.operate > record.operate:
+                # 同一节点(src_i相同, k相同=>dst_i相同) 先减后加 优于 先加后减, operate 存放后操作
                 self[node.k] = node
 
     def __repr__(self):
         string = ','.join(map(lambda each: ' ' * 6 if each is None else str(each), self))
-        return f'(-{self.end.y}, {self.end.x}){string}'
+        return f'(-{self.end_node.dst_i}, {self.end_node.src_i}){string}'
 
 
-def meyer(old, new) -> Snake:
-    end = Node(len(old), len(new))
+def myers(src, dst) -> Node:
+    end_node = Node(len(src), len(dst))
 
-    node_list = RecordList(end)
-    node_list[0] = Node()
+    node_list = RecordList(end_node)
+    node_list[0] = Node(0, 0)
 
     for deep in range(len(node_list)):
-        for node in node_list.iter(deep):
-            if node == end:
-                return node.snake
-            node.forward(old, new)
-            node_list.push(node.sub())
-            node_list.push(node.add())
+        for node in node_list.layer_iter(deep):
+            if node == end_node:
+                return node
+            node = node.pass_node(src, dst)
+            node_list.push(node.del_node())
+            node_list.push(node.add_node())
 
 
-if __name__ == '__main__':
-    old = 'ABCABBA'
-    new = 'CBABAC'
+def diff(src, dst) -> iter:
+    prev_operate = None
+    seg = []
 
-    snake = meyer(old, new)
-    print(snake)
+    src_i, dst_i = 0, 0
+    for operate in myers(src, dst):
+        if (operate != prev_operate) and (prev_operate is not None):
+            yield prev_operate, ''.join(seg)
+            seg.clear()
 
-    for a in snake:
-        print(type(a), len(a))
+        prev_operate = operate
+        if operate == DEL:
+            seg.append(src[src_i])
+            src_i += 1
+        elif operate == PASS:
+            # assert src[src_i] == dst[dst_i]
+            seg.append(src[src_i])
+            src_i += 1
+            dst_i += 1
+        elif operate == ADD:
+            seg.append(dst[dst_i])
+            dst_i += 1
+
+    yield prev_operate, ''.join(seg)
+
+
+if __name__ == '__main__' and 1:
+    import cProfile
+    import pstats
+
+    cprofile = cProfile.Profile()
+
+    with open('2.txt', 'r', encoding='utf-8') as src_file, open('1.txt', 'r', encoding='utf-8') as dst_file:
+        src = src_file.read()
+        dst = dst_file.read()
+
+        cprofile.run('list(diff(src, dst))')
+        pstats.Stats(cprofile).strip_dirs().sort_stats('ncalls').sort_stats(-1).print_stats()
+
+if __name__ == '__main__' and 1:
+    src = 'ABCABBA'
+    dst = 'CBABAC'
+
+    for operate, seg in diff(src, dst):
+        print(operate, seg)
