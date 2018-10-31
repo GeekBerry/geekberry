@@ -13,42 +13,29 @@ DEL, PASS, ADD = -1, 0, 1
 
 
 class Node:
-    operate = None
-
-    @staticmethod
-    def build(prev, operate=None):
-        if operate == DEL:
-            node = Node(prev.src_i + 1, prev.dst_i, prev)
-        elif operate == PASS:
-            node = Node(prev.src_i + 1, prev.dst_i + 1, prev)
-        elif operate == ADD:
-            node = Node(prev.src_i, prev.dst_i + 1, prev)
-        else:
-            node = Node(prev.src_i, prev.dst_i, prev)
-        node.operate = operate
-        return node
-
-    def __init__(self, src_i, dst_i, prev=None):
+    def __init__(self, src_i, dst_i):
         self.src_i = src_i
         self.dst_i = dst_i
-        self.prev = prev
+        self.prev = None  # 前一个节点
+        self.operate = PASS  # node 由什么操作而来
 
     @property
     def k(self):
+        """斜率"""
         return self.src_i - self.dst_i
 
     def __hash__(self):
         return self.k
 
     def __iter__(self):
-        reverse = []
+        operate_list = []
 
         node = self
         while node.prev is not None:
-            reverse.append(node.operate)
+            operate_list.append(node.operate)
             node = node.prev
 
-        return reversed(reverse)
+        return reversed(operate_list)
 
     def __eq__(self, other):
         return self.src_i == other.src_i and self.dst_i == other.dst_i
@@ -59,36 +46,41 @@ class Node:
     def __le__(self, other):
         return self.src_i <= other.src_i and self.dst_i <= other.dst_i
 
-    def del_node(self):
-        return Node.build(self, DEL)
+    def grow(self, operate) -> 'Node':
+        """
+        获取不同操作的下一节点
+        :param operate:int
+        :return: Node
+        """
+        if operate == DEL:
+            new_node = Node(self.src_i + 1, self.dst_i)
+        elif operate == PASS:
+            new_node = Node(self.src_i + 1, self.dst_i + 1)
+        elif operate == ADD:
+            new_node = Node(self.src_i, self.dst_i + 1)
+        else:
+            raise Exception(f'unknown operate {operate}')
 
-    def add_node(self):
-        return Node.build(self, ADD)
-
-    def pass_node(self, old, new):
-        end = Node(len(old), len(new))
-
-        node = self
-        while node < end and old[node.src_i] == new[node.dst_i]:
-            node = Node.build(node, PASS)
-
-        return node
+        new_node.prev = self
+        new_node.operate = operate
+        return new_node
 
     def __repr__(self):
         return f'({self.src_i}, {self.dst_i})'
 
 
 class RecordList(list):
-    def __init__(self, end_node: Node):
-        super().__init__(repeat(None, end_node.src_i + end_node.dst_i + 1))
-        self.end_node = end_node
+    def __init__(self, src_len: int, dst_len: int):
+        super().__init__(repeat(None, dst_len + 1 + src_len))  # [-dst_len, src_len]
+        self.dst_len = dst_len
+        self.src_len = src_len
 
     def layer_iter(self, deep):
-        left = max(-deep, -self.end_node.dst_i)
-        left += (left ^ deep) & 1
+        left = -min(deep, self.dst_len)
+        left += (left ^ deep) & 0b1
 
-        right = min(deep, self.end_node.src_i)
-        right -= (right ^ deep) & 1
+        right = min(deep, self.src_len)
+        right -= (right ^ deep) & 0b1
 
         for i in range(left, right + 1, 2):  # +1 取闭区间
             node = self[i]
@@ -96,36 +88,41 @@ class RecordList(list):
                 yield node
 
     def push(self, node):
-        if node <= self.end_node:
-            record = self[node.k]
+        if node.src_i <= self.src_len and node.dst_i <= self.dst_len:
+            record = self[node.k]  # 相同斜率下的节点
             if not record:
                 self[node.k] = node
-            elif node.src_i > record.src_i:
-                self[node.k] = node
+            elif node.src_i > record.src_i:  # node 节点走得更远
+                self[node.k] = node  # 覆盖更新
             elif node.src_i < record.src_i:
                 return
-            elif node.operate > record.operate:
-                # 同一节点(src_i相同, k相同=>dst_i相同) 先减后加 优于 先加后减, operate 存放后操作
-                self[node.k] = node
+            elif node.operate > record.operate:  # node 和 record 位置相同 (src_i相同, k相同=>dst_i相同)
+                self[node.k] = node  # 覆盖更新, (先减后)加优于(先加后)减
 
     def __repr__(self):
         string = ','.join(map(lambda each: ' ' * 6 if each is None else str(each), self))
-        return f'(-{self.end_node.dst_i}, {self.end_node.src_i}){string}'
+        return f'(-{self.dst_len}, {self.src_len}){string}'
 
 
 def myers(src, dst) -> Node:
     end_node = Node(len(src), len(dst))
 
-    node_list = RecordList(end_node)
-    node_list[0] = Node(0, 0)
+    node_list = RecordList(len(src), len(dst))
+    node_list.push(Node(0, 0))
 
     for deep in range(len(node_list)):
         for node in node_list.layer_iter(deep):
+            # print(node_list)
             if node == end_node:
                 return node
-            node = node.pass_node(src, dst)
-            node_list.push(node.del_node())
-            node_list.push(node.add_node())
+
+            while node < end_node and src[node.src_i] == dst[node.dst_i]:
+                node = node.grow(PASS)
+
+            node_list.push(node.grow(DEL))
+            node_list.push(node.grow(ADD))
+
+    raise Exception('myers arithmetic unexpected terminal')
 
 
 def diff(src, dst) -> iter:
@@ -143,7 +140,7 @@ def diff(src, dst) -> iter:
             seg.append(src[src_i])
             src_i += 1
         elif operate == PASS:
-            # assert src[src_i] == dst[dst_i]
+            assert src[src_i] == dst[dst_i]
             seg.append(src[src_i])
             src_i += 1
             dst_i += 1
