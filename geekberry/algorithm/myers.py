@@ -155,19 +155,6 @@ def diff(src, dst) -> iter:
 
 
 if __name__ == '__main__' and 1:
-    import cProfile
-    import pstats
-
-    cprofile = cProfile.Profile()
-
-    with open('2.txt', 'r', encoding='utf-8') as src_file, open('1.txt', 'r', encoding='utf-8') as dst_file:
-        src = src_file.read()
-        dst = dst_file.read()
-
-        cprofile.run('list(diff(src, dst))')
-        pstats.Stats(cprofile).strip_dirs().sort_stats('ncalls').sort_stats(-1).print_stats()
-
-if __name__ == '__main__' and 1:
     src = 'ABCABBA'
     dst = 'CBABAC'
 

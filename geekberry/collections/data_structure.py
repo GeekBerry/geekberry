@@ -15,6 +15,9 @@ def named_tuple(*names):
         def __getattr__(self, item):
             return self[NameTuple.__names[item]]
 
+        def __repr__(self):
+            return str(dict(zip(names, self)))
+
     return NameTuple
 
 

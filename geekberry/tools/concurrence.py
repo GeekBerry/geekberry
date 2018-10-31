@@ -17,33 +17,41 @@ class Queue:
     class Closed(Exception):
         pass
 
-    def __init__(self, maxsize: int = 1):
+    def __init__(self, maxsize: int = 1, delay=0):
         assert isinstance(maxsize, int) and maxsize >= 1
-        self.__quque = queue.Queue(maxsize)
-        self.__opened = True
+        self._quque = queue.Queue(maxsize)
+        self._opened = True
+        self._delay = delay
+
+    def full(self):
+        return self._quque.full()
 
     async def put(self, value):
-        if self.__opened:
-            while self.__quque.full():
-                await asyncio.sleep(0)
-            self.__quque.put_nowait(value)
+        if self._opened:
+            while self.full():
+                await asyncio.sleep(self._delay)
+            self._quque.put_nowait(value)
         else:
             raise Queue.Closed()
 
-    async def get(self):
-        while self.__quque.empty() and self.__opened:
-            await asyncio.sleep(0)
+    def empty(self):
+        return self._quque.empty()
 
-        try:
-            return self.__quque.get_nowait()
-        except queue.Empty:
-            raise Queue.Closed()
+    async def get(self):
+        while self.empty():
+            if self._opened:
+                await asyncio.sleep(self._delay)
+            else:
+                raise Queue.Closed()
+
+        return self._quque.get_nowait()
 
     def close(self):
-        self.__opened = False
+        """ 不再接受消息 """
+        self._opened = False
 
 
-if __name__ == '__main__' and 0:
+if __name__ == '__main__' and 1:
     import random
 
     chan = Queue(2)
@@ -55,7 +63,7 @@ if __name__ == '__main__' and 0:
         for i in range(10):
             await chan.put(i)
             print('p1', i, '...')
-            await asyncio.sleep(0.3)
+            await asyncio.sleep(1)
         chan.close()
 
 
@@ -70,10 +78,12 @@ if __name__ == '__main__' and 0:
             except Queue.Closed:
                 break
 
+        print('c1 stop')
+
 
     concurrence(p1(), c1())
 
-if __name__ == '__main__' and 1:
+if __name__ == '__main__' and 0:
     import time
 
 
